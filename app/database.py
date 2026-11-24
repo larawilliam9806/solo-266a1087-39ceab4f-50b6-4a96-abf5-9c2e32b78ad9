@@ -71,7 +71,19 @@ def connect(db_path: Optional[str] = None) -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=30, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # WAL 下读写不互斥；busy_timeout 让写锁竞争等待而不是立刻报错。
     conn.execute("PRAGMA busy_timeout = 30000")
+    return conn
+
+
+def connect_readonly(db_path: Optional[str] = None) -> sqlite3.Connection:
+    """只读连接：核算查询专用，WAL 下永远不会被写事务阻塞。
+
+    ``query_only`` 禁止该连接执行任何写语句，从连接层面杜绝误写；
+    只读连接打开的是 WAL 快照，读到的始终是已提交（已生效）的数据。
+    """
+    conn = connect(db_path)
+    conn.execute("PRAGMA query_only = ON")
     return conn
 
 
